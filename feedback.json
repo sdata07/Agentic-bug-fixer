@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "page_url": "http://localhost:8000/",
+    "message": "There is a typo where try is spelled as tri",
+    "category": "bug",
+    "user_email": "",
+    "browser_info": "Firefox",
+    "screenshot_url": "",
+    "created_at": "2026-10-24T23:09:34.601Z",
+    "status": "new"
+  }
+]

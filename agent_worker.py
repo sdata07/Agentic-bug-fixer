@@ -84,35 +84,52 @@ def call_ollama(prompt: str) -> str:
         return raw.strip()
 
 
+def discover_candidate_files() -> list[Path]:
+    candidates: list[Path] = []
+    for path in WORKSPACE.iterdir():
+        if path.name in {".git", ".venv", "__pycache__", ".pytest_cache"}:
+            continue
+        if path.is_file() and path.suffix.lower() in {".html", ".py", ".js", ".css", ".json", ".md", ".txt"}:
+            candidates.append(path)
+    return sorted(candidates)
+
+
 def build_prompt(feedback_entry: dict) -> str:
     message = feedback_entry.get("message", "")
     category = feedback_entry.get("category", "bug")
     page_url = feedback_entry.get("page_url", "")
 
-    if HOME_FILE.exists():
-        home_text = HOME_FILE.read_text(encoding="utf-8")
-    else:
-        home_text = "home.html not found"
+    candidate_files = discover_candidate_files()
+    file_contexts: list[str] = []
+    for path in candidate_files:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        snippet = text[:1200].replace("```", "")
+        file_contexts.append(f"FILE: {path.name}\n```\n{snippet}\n```\n")
+
+    repo_text = "\n\n".join(file_contexts) if file_contexts else "No project files found."
 
     return (
-        "You are a senior frontend engineer.\n\n"
-        "Your job is to fix the visible typo or text issue in home.html.\n\n"
-        "CURRENT FILE CONTENTS:\n"
-        "```html\n"
-        f"{home_text}\n"
-        "```\n\n"
-        "USER FEEDBACK:\n"
+        "You are a senior frontend engineer working on a small local project.\n\n"
+        "Browse only the relevant project files below and choose the exact file that needs to change.\n\n"
+        f"Relevant project files:\n{repo_text}\n\n"
+        "User feedback:\n"
         f"- page_url: {page_url}\n"
         f"- category: {category}\n"
         f"- message: {message}\n\n"
-        "OUTPUT FORMAT: a single JSON object exactly like this:\n"
-        '{"file": "home.html", "replacement": "old text|new text", "summary": "what changed"}\n\n'
-        "STRICT RULES:\n"
-        "1. The exact old text must exist in home.html.\n"
-        "2. The new text must be the corrected version.\n"
-        "3. Only return valid JSON, no markdown fences.\n"
-        "4. If unsure, return {\"file\": null, \"summary\": \"Need more context\"}\n"
-        "5. Use the file text above as the source of truth.\n"
+        "Goal:\n"
+        "- choose the correct file to edit\n"
+        "- identify the exact text that should be replaced\n"
+        "- return only valid JSON in this exact shape:\n"
+        '{"file": "relative/path/to/file", "replacement": "old text|new text", "summary": "what changed"}\n\n'
+        "Rules:\n"
+        "- Use the file contents above as the source of truth.\n"
+        "- Only choose a file that actually exists in this project.\n"
+        "- Do not guess a file name.\n"
+        "- Do not return markdown fences.\n"
+        "- If the issue is unclear, return {\"file\": null, \"summary\": \"Need more context\"}\n"
     )
 
 
@@ -174,10 +191,10 @@ def get_model_fix(entry: dict) -> str:
         return first
 
     fallback = (
-        "You are fixing a typo in a local HTML file.\n"
+        "You are fixing a typo in a local web app.\n"
         "Return only JSON in the form {\"file\": \"home.html\", \"replacement\": \"old|new\", \"summary\": \"what changed\"}.\n"
         f"User report: {entry.get('message', '')}\n"
-        "Use only text that is actually present in home.html.\n"
+        "Use only text that is actually present in the project files above.\n"
     )
     return call_ollama(fallback)
 
