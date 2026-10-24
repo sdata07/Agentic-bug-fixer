@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Report a bug</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 40px 20px;
+      background: #f5f5f5;
+    }
+    .box {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border: 1px solid #ddd;
+      padding: 24px;
+    }
+    input, select, textarea, button {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px;
+      margin: 8px 0;
+      font-size: 16px;
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+    }
+    .row a, .row button {
+      flex: 1;
+      text-decoration: none;
+      text-align: center;
+      display: inline-block;
+      background: #eee;
+      color: black;
+      border: 1px solid #ccc;
+      cursor: pointer;
+    }
+    .submit {
+      background: black;
+      color: white;
+      border: none;
+    }
+    #status {
+      display: none;
+      margin-top: 12px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>Report a bug</h1>
+    <p>Tell us what went wrong on this website.</p>
+
+    <form id="feedbackForm">
+      <input type="hidden" name="page_url" id="page_url" />
+      <select name="category">
+        <option value="bug">Bug</option>
+        <option value="ui">UI</option>
+        <option value="feature">Feature request</option>
+      </select>
+      <input name="browser_info" type="text" placeholder="Browser info" />
+      <textarea name="message" placeholder="Describe the problem" required></textarea>
+      <div class="row">
+        <button type="button" id="closeBtn">Close</button>
+        <button type="submit" class="submit">Submit</button>
+      </div>
+    </form>
+
+    <div id="status"></div>
+  </div>
+
+  <script>
+    const form = document.getElementById('feedbackForm');
+    const status = document.getElementById('status');
+    const pageUrlInput = document.getElementById('page_url');
+    const closeBtn = document.getElementById('closeBtn');
+
+    const params = new URLSearchParams(window.location.search);
+    const fromPage = params.get('from') || document.referrer || 'unknown page';
+    pageUrlInput.value = fromPage;
+
+    closeBtn.addEventListener('click', function () {
+      if (document.referrer) {
+        window.history.back();
+      } else {
+        window.location.href = '/';
+      }
+    });
+
+    form.addEventListener('submit', async function (event) {
+      event.preventDefault();
+
+      const payload = Object.fromEntries(new FormData(form).entries());
+      payload.created_at = new Date().toISOString();
+
+      try {
+        const response = await fetch('/api/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          status.style.display = 'block';
+          status.style.color = 'red';
+          status.textContent = result.error || 'Failed to submit';
+          return;
+        }
+
+        status.style.display = 'block';
+        status.style.color = 'green';
+        status.textContent = 'Thanks, your bug report was saved. Applying fix...';
+        form.reset();
+
+        setTimeout(function () {
+          window.location.href = '/';
+        }, 800);
+      } catch (error) {
+        status.style.display = 'block';
+        status.style.color = 'red';
+        status.textContent = 'Something went wrong.';
+      }
+    });
+  </script>
+</body>
+</html>
